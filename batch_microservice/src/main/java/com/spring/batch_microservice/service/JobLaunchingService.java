@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import com.spring.batch_microservice.dao.BatchDatabaseDAO;
 
 @Service
-public class JobSchedulingService {
+public class JobLaunchingService {
 
 	@Autowired
 	private JobOperator jobOperator;

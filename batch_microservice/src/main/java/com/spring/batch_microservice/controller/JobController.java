@@ -12,15 +12,17 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.spring.batch_microservice.service.JobSchedulingService;
+import com.spring.batch_microservice.service.JobLaunchingService;
 
 @RestController
 public class JobController {
 	
 	@Autowired
-	private JobSchedulingService jobSchedulingService;
+	private JobLaunchingService jobLaunchingService;
 	
+	@Autowired
     private ThreadPoolTaskScheduler  threadPoolTaskScheduler;
+	
 	private List<ScheduledFuture> scheduledJobs = new ArrayList<>();
 	
 	@GetMapping("/skipJob/{cronExp}")
@@ -32,7 +34,7 @@ public class JobController {
 			@Override
 			public void run() {
 				try {
-					jobSchedulingService.launchSkipJob();
+					jobLaunchingService.launchSkipJob();
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -43,6 +45,6 @@ public class JobController {
 	@GetMapping("/stopJob/{jobName}")
 	public void stopJob(@PathVariable("jobName") String jobName) throws Exception {
 		
-		this.jobSchedulingService.stopJob(jobName);
+		this.jobLaunchingService.stopJob(jobName);
 	}
 }
