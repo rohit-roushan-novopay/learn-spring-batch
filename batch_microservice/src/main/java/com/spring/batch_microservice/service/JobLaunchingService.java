@@ -2,6 +2,7 @@ package com.spring.batch_microservice.service;
 
 import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Service;
 
 import com.spring.batch_microservice.dao.BatchDatabaseDAO;
@@ -43,5 +44,9 @@ public class JobLaunchingService {
 		System.out.println(lastJobExecutionId);
 		
 		this.jobOperator.stop(lastJobExecutionId);
+	}
+
+	public String getCronExp(String jobName) {
+		return batchDatabaseDAO.getCronExp(jobName);
 	}
 }
