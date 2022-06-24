@@ -1,14 +1,13 @@
-package com.spring.batch_microservice.scheduler;
+package com.spring.batch_microservice.service;
 
 import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import com.spring.batch_microservice.dao.BatchDatabaseDAO;
 
-@Component
-public class JobScheduler {
+@Service
+public class JobSchedulingService {
 
 	@Autowired
 	private JobOperator jobOperator;
@@ -16,14 +15,12 @@ public class JobScheduler {
 	@Autowired
 	private BatchDatabaseDAO batchDatabaseDAO;
 	
-	// start the job at 1 PM everyday
-	@Scheduled(cron = "#{@getSkipJobCronValue}")
-	public void runJob() throws Exception {
+	public long launchSkipJob() throws Exception {
 		
-		int lastJobExecutionId = batchDatabaseDAO.latestJobExecutionIdSkipJob();
+		int lastJobExecutionId = batchDatabaseDAO.latestJobExecutionId("skipJob");
 		System.out.println(lastJobExecutionId);
 		
-		String lastJobStatus = batchDatabaseDAO.latestJobExecutionStatusSkipJob();
+		String lastJobStatus = batchDatabaseDAO.latestJobExecutionStatus("skipJob");
 		System.out.println(lastJobStatus);
 		
 		// job has not been run before or it was not completed last time
@@ -31,12 +28,20 @@ public class JobScheduler {
 			
 			long date = System.currentTimeMillis();
 			// start a new instance of the job ... returns the new execution id
-			this.jobOperator.start("skipJob", "date="+date);
+			return this.jobOperator.start("skipJob", "date="+date);
 			
 		} else {
 			
 			// restart the previous job .. returns the new execution id
-			this.jobOperator.restart(lastJobExecutionId);
+			return this.jobOperator.restart(lastJobExecutionId);
 		}
+	}
+	
+	public void stopJob(String jobName) throws Exception {
+		
+		int lastJobExecutionId = batchDatabaseDAO.latestJobExecutionId(jobName);
+		System.out.println(lastJobExecutionId);
+		
+		this.jobOperator.stop(lastJobExecutionId);
 	}
 }

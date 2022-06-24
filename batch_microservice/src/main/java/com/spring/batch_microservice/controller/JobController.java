@@ -1,52 +1,48 @@
 package com.spring.batch_microservice.controller;
 
-import org.springframework.batch.core.launch.JobOperator;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ScheduledFuture;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.Trigger;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.spring.batch_microservice.dao.BatchDatabaseDAO;
+import com.spring.batch_microservice.service.JobSchedulingService;
 
 @RestController
 public class JobController {
 	
 	@Autowired
-	private JobOperator jobOperator;
+	private JobSchedulingService jobSchedulingService;
 	
-	@Autowired
-	private BatchDatabaseDAO batchDatabaseDAO;
+    private ThreadPoolTaskScheduler  threadPoolTaskScheduler;
+	private List<ScheduledFuture> scheduledJobs = new ArrayList<>();
 	
-	@GetMapping("/skipJob")
-	public long skipJob() throws Exception {
+	@GetMapping("/skipJob/{cronExp}")
+	public void skipJob(@PathVariable("cronExp") String cronExpression) {
+	
+		Trigger trigger = new CronTrigger(cronExpression);
 		
-		int lastJobExecutionId = batchDatabaseDAO.latestJobExecutionIdSkipJob();
-		System.out.println(lastJobExecutionId);
-		
-		String lastJobStatus = batchDatabaseDAO.latestJobExecutionStatusSkipJob();
-		System.out.println(lastJobStatus);
-		
-		// job has not been run before or it was not completed last time
-		if(lastJobExecutionId == -1 || lastJobStatus.equals("COMPLETED")) {
-			
-			long date = System.currentTimeMillis();
-			// start a new instance of the job ... returns the new execution id
-			return this.jobOperator.start("skipJob", "date="+date);
-			
-		} else {
-			
-			// restart the previous job .. returns the new execution id
-			return this.jobOperator.restart(lastJobExecutionId);
-		}
+		scheduledJobs.add(this.threadPoolTaskScheduler.schedule((new Runnable() {
+			@Override
+			public void run() {
+				try {
+					jobSchedulingService.launchSkipJob();
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+		}), trigger));
 	}
 	
-	@GetMapping("/stopJob/{id}")
-	public void stopJob(@PathVariable("id") long id) throws Exception {
+	@GetMapping("/stopJob/{jobName}")
+	public void stopJob(@PathVariable("jobName") String jobName) throws Exception {
 		
-		/*
-		 * 'id' here is the id returned from the 
-		 * startJob() method
-		 */
-		this.jobOperator.stop(id);
+		this.jobSchedulingService.stopJob(jobName);
 	}
 }
