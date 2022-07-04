@@ -1,21 +1,19 @@
-package com.spring.batch_microservice.dao;
+package com.spring.batch.dao;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.springframework.batch.core.Step;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import com.spring.batch_microservice.custom.JobExecutionRowMapper;
-import com.spring.batch_microservice.custom.JobInstanceRowMapper;
-import com.spring.batch_microservice.custom.JobScheduleRowMapper;
-import com.spring.batch_microservice.pojo.JobExecution;
-import com.spring.batch_microservice.pojo.JobInstance;
-import com.spring.batch_microservice.pojo.JobSchedule;
+import com.spring.batch.custom.JobExecutionRowMapper;
+import com.spring.batch.custom.JobInstanceRowMapper;
+import com.spring.batch.custom.JobScheduleRowMapper;
+import com.spring.batch.pojo.JobExecution;
+import com.spring.batch.pojo.JobInstance;
+import com.spring.batch.pojo.JobSchedule;
 
 @Repository
 public class BatchDatabaseDAO {

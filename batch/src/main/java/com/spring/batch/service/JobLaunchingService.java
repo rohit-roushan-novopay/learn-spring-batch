@@ -1,18 +1,16 @@
-package com.spring.batch_microservice.service;
+package com.spring.batch.service;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 
-import org.springframework.batch.core.Step;
 import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.spring.batch_microservice.dao.BatchDatabaseDAO;
+import com.spring.batch.dao.BatchDatabaseDAO;
 
 @Service
 public class JobLaunchingService {

@@ -1,4 +1,4 @@
-package com.spring.batch_microservice.pojo;
+package com.spring.batch.pojo;
 
 public class JobSchedule {
 

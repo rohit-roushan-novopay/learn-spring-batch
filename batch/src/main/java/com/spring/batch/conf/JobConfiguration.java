@@ -1,4 +1,4 @@
-package com.spring.batch_microservice.conf;
+package com.spring.batch.conf;
 
 import java.util.HashMap;
 import java.util.List;
@@ -16,6 +16,8 @@ import org.springframework.batch.core.job.builder.SimpleJobBuilder;
 import org.springframework.batch.core.job.flow.JobExecutionDecider;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
+import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider;
+import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.database.JdbcPagingItemReader;
 import org.springframework.batch.item.database.Order;
 import org.springframework.batch.item.database.support.MySqlPagingQueryProvider;
@@ -29,18 +31,21 @@ import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.mail.javamail.JavaMailSender;
 
-import com.spring.batch_microservice.custom.ColumnRangePartitioner;
-import com.spring.batch_microservice.custom.CustomSkipListener;
-import com.spring.batch_microservice.custom.CustomerRowMapper;
-import com.spring.batch_microservice.custom.SkipItemWriter;
-import com.spring.batch_microservice.exception.CustomRetryableException;
-import com.spring.batch_microservice.pojo.Customer;
-import com.spring.batch_microservice.service.JobLaunchingService;
-import com.spring.springbatch.custom.RetryItemWriter;
+import com.spring.batch.custom.ColumnRangePartitioner;
+import com.spring.batch.custom.CustomSkipListener;
+import com.spring.batch.custom.CustomerRowMapper;
+import com.spring.batch.custom.SkipItemWriter;
+import com.spring.batch.exception.CustomRetryableException;
+import com.spring.batch.listeners.ChunkBasedListener;
+import com.spring.batch.listeners.StepBasedListener;
+import com.spring.batch.pojo.Customer;
+import com.spring.batch.service.JobLaunchingService;
+import com.spring.batch.custom.RetryItemWriter;
 
 @Configuration
-public class SkipJobConfiguration implements ApplicationContextAware {
+public class JobConfiguration implements ApplicationContextAware {
 	
 	@Autowired
 	private JobBuilderFactory jobBuilderFactory;
@@ -50,25 +55,36 @@ public class SkipJobConfiguration implements ApplicationContextAware {
 
 	@Autowired
 	private DataSource dataSource;
-	
-	@Autowired
-	private SkipItemWriter skipItemWriter;
 
 	@Autowired
 	private ApplicationContext applicationContext;
 	
-	@Autowired
-	private ColumnRangePartitioner columnRangePartitioner;
+	@Bean
+	public ColumnRangePartitioner partitioner() {
+		ColumnRangePartitioner columnRangePartitioner = new ColumnRangePartitioner();
+
+		columnRangePartitioner.setColumn("id");
+		columnRangePartitioner.setDataSource(this.dataSource);
+		columnRangePartitioner.setTable("customer");
+
+		return columnRangePartitioner;
+	}
 	
-	@Autowired
-	private JobLaunchingService jobLaunchingService;
-	
-	@Autowired
-	@StepScope
-	private RetryItemWriter retryItemWriter;
-	
-	@Autowired
-	private JdbcPagingItemReader<Customer> jdbcItemReader;
+	/*
+	 *  writes all the items read into the database
+	 *  does a single jdbc batch update for all of the items in the chunk
+	 */
+	@Bean
+	public JdbcBatchItemWriter<Customer> jdbcItemWriter() {
+		
+		JdbcBatchItemWriter<Customer> itemWriter = new JdbcBatchItemWriter<>();
+		itemWriter.setDataSource(this.dataSource);
+		itemWriter.setSql("INSERT INTO NEW_CUSTOMER (firstName, lastName, birthdate) VALUES (:firstName, :lastName, :birthdate)");
+		itemWriter.setItemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>());
+		itemWriter.afterPropertiesSet();
+		
+		return itemWriter;
+	}
 	
 	@Bean
 	@StepScope
@@ -82,7 +98,7 @@ public class SkipJobConfiguration implements ApplicationContextAware {
 		reader.setDataSource(dataSource);
 		
 		// set the fetch size same as chunk size
-		reader.setFetchSize(100);
+		reader.setFetchSize(1000);
 		reader.setRowMapper(new CustomerRowMapper());
 		
 		// spring batch generates a new sql statement for each page
@@ -103,53 +119,32 @@ public class SkipJobConfiguration implements ApplicationContextAware {
 	
 	// Partitioning : Master step for step1S
 	@Bean
-	public Step step1M() throws Exception {
+	public Step step1M(JavaMailSender javaMailSender) throws Exception {
 		return stepBuilderFactory.get("step1M")
-				.partitioner(step1S().getName(), columnRangePartitioner)
-				.step(step1S())
+				.partitioner(step1S(javaMailSender).getName(), partitioner())
+				.step(step1S(javaMailSender))
 				.gridSize(10)
 				.taskExecutor(new SimpleAsyncTaskExecutor())
-				.build();
-	}
-
-	@Bean
-	public Step step2M() {
-		
-		return stepBuilderFactory.get("step2M").<Customer, Customer> chunk(100)
-				.reader(jdbcItemReader)
-				.writer(retryItemWriter)
-				.faultTolerant()
-				.retry(CustomRetryableException.class)
-				.retryLimit(10)
 				.build();
 	}
 	
 	// Partitioning : Slave step for step1M
 	@Bean
-	public Step step1S() throws Exception{
+	public Step step1S(JavaMailSender javaMailSender) throws Exception{
 		
-		return stepBuilderFactory.get("step1S").<Customer, Customer> chunk(100)
+		return stepBuilderFactory.get("step1S").<Customer, Customer> chunk(1000)
 						.reader(pagingItemReader(null, null))
-						.writer(skipItemWriter)
+						.writer(jdbcItemWriter())
 						.faultTolerant()
-						.skip(CustomRetryableException.class)
-						.skipLimit(100)
-						.listener(new CustomSkipListener())
+						.listener(new StepBasedListener(javaMailSender))
+						.listener(new ChunkBasedListener(javaMailSender))
 						.build();
 	}
 	
 	@Bean
-	public Job skipJob() throws Exception {	
-				
-		SimpleJobBuilder jobBuilder = this.jobBuilderFactory.get("skipJob").start(step1M());
-
-		List<String> stepsOrder = this.jobLaunchingService.getOrderedStepsFromDB("skipJob");
-
-		for (String stepName : stepsOrder) {
-	        jobBuilder.next(stepBuilderFactory.get(stepName).tasklet(null).build());
-	    }
-		
-	    return jobBuilder.build();
+	public Job batchJob(JavaMailSender javaMailSender) throws Exception {	
+			
+		return jobBuilderFactory.get("batchJob").start(step1M(javaMailSender)).build();
 	}
 
 	@Override

@@ -1,11 +1,11 @@
-package com.spring.batch_microservice.custom;
+package com.spring.batch.custom;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import org.springframework.jdbc.core.RowMapper;
 
-import com.spring.batch_microservice.pojo.JobSchedule;
+import com.spring.batch.pojo.JobSchedule;
 
 public class JobScheduleRowMapper implements RowMapper<JobSchedule>{
 
